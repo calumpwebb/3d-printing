@@ -1,0 +1,777 @@
+// Accessory Mount Base Plate - 4-PIECE VERSION
+// Mount plate + upper walls + lower walls + bottom plate, joined with dovetails
+// 50x88mm plate with 30x50mm bolt pattern (centered)
+
+/* [Display] */
+display_mode = "separated"; // [assembled, separated, print_top_plate, print_upper_wall, print_lower_wall, print_bottom_back, print_bottom_front, test_male, test_female, test_plate_male, test_plate_female]
+separation = 150;       // mm - gap between pieces when separated
+
+/* [Plate Dimensions] */
+plate_width = 78;       // mm (X direction) - walls width
+plate_height = 64;      // mm (Y direction) - gives ~20mm gap per side (just over 3/4")
+plate_thickness = 8;    // mm
+
+/* [Bolt Pattern] */
+bolt_pattern_x = 50;    // mm between holes (width) - rotated 90°
+bolt_pattern_y = 30;    // mm between holes (height) - rotated 90°
+bolt_hole_dia = 6;      // mm - clearance for bolts
+bolt_head_dia = 12;     // mm - recess for bolt heads
+bolt_recess_depth = 3;  // mm - countersink depth
+
+/* [Walls] */
+wall_height = 254;      // mm (10 inches internal)
+wall_thickness = 8;     // mm
+
+/* [Bottom Plate] */
+bottom_width = 363;     // mm (X direction) - 355mm internal + 8mm back bumper
+bumper_height = 25.4;   // mm - height of guide bumpers (1 inch)
+bumper_thickness = 8;   // mm - thickness of bumpers (same as walls)
+
+/* [Dovetail Joint] */
+// Double dovetail - two smaller ones for better strength
+dovetail_height = 8;        // mm - engagement depth
+dovetail_width_base = 8;    // mm - narrow part (at base)
+dovetail_width_top = 10;    // mm - wide part (~7° angle)
+dovetail_clearance = 0.3;   // mm - gap for sliding fit
+dovetail_spacing = 24;      // mm - distance between dovetail centers
+// Two 10mm dovetails, 24mm apart = 12mm solid on each side, 14mm between
+
+/* [Hidden] */
+half_height = wall_height / 2;
+joint_clearance = dovetail_clearance / 2;  // each half is slightly shorter
+
+// Derived
+plastic_behind_bolt = plate_thickness - bolt_recess_depth;  // 5mm
+
+module bolt_hole() {
+    // Through hole
+    cylinder(h = plate_thickness + 1, d = bolt_hole_dia, center = false, $fn = 32);
+
+    // Counterbore recess for bolt head
+    cylinder(h = bolt_recess_depth, d = bolt_head_dia, center = false, $fn = 32);
+}
+
+// PIECE 1: Base mount plate - extended on back only, clipped at front of walls
+module mount_plate() {
+    // Top plate width - from back (-bottom_width/2) to front of walls (+plate_width/2)
+    top_plate_width = bottom_width/2 + plate_width/2;
+
+    // Side bumper length - from back bumper to 0.25" before the walls
+    top_side_bumper_length = (bottom_width/2 - wall_thickness) - (plate_width/2 + 6.35);
+
+    difference() {
+        // Extended plate - back to front of walls only
+        translate([-bottom_width/2, -plate_height/2, 0])
+            cube([top_plate_width, plate_height, plate_thickness]);
+
+        // Bolt holes in 50x30mm pattern, centered
+        for (x = [-bolt_pattern_x/2, bolt_pattern_x/2]) {
+            for (y = [-bolt_pattern_y/2, bolt_pattern_y/2]) {
+                translate([x, y, -0.5])
+                    bolt_hole();
+            }
+        }
+    }
+
+    // Back bumper - runs along the back edge (-X side), pointing DOWN
+    translate([-bottom_width/2, -plate_height/2, -bumper_height])
+        cube([wall_thickness, plate_height, bumper_height]);
+
+    // Left side bumper - runs along -Y edge (back section only), pointing DOWN
+    translate([-bottom_width/2 + wall_thickness, -plate_height/2, -bumper_height])
+        cube([top_side_bumper_length, wall_thickness, bumper_height]);
+
+    // Right side bumper - runs along +Y edge (back section only), pointing DOWN
+    translate([-bottom_width/2 + wall_thickness, plate_height/2 - wall_thickness, -bumper_height])
+        cube([top_side_bumper_length, wall_thickness, bumper_height]);
+
+    // Middle divider bumper - separates the two sides, pointing DOWN
+    translate([-bottom_width/2 + wall_thickness, -wall_thickness/2, -bumper_height])
+        cube([top_side_bumper_length, wall_thickness, bumper_height]);
+}
+
+// Single dovetail tongue shape
+// Wide end is 1mm narrower than groove for easier fit
+module single_dovetail_tongue() {
+    tip_width = dovetail_width_top - 1;  // 1mm smaller at wide end
+    rotate([90, 0, 0])
+        linear_extrude(height = wall_thickness, center = true)
+            polygon(points = [
+                [-dovetail_width_base/2, 0],
+                [dovetail_width_base/2, 0],
+                [tip_width/2, dovetail_height],
+                [-tip_width/2, dovetail_height]
+            ]);
+}
+
+// Single dovetail groove shape
+// Keep same angle as tongue, just add uniform clearance to widths (not height)
+module single_dovetail_groove() {
+    wb = dovetail_width_base + dovetail_clearance;
+    wt = dovetail_width_top + dovetail_clearance;
+    h = dovetail_height;  // Same height as tongue to preserve angle
+
+    rotate([90, 0, 0])
+        linear_extrude(height = wall_thickness + 2, center = true)
+            polygon(points = [
+                [-wb/2, -1],
+                [wb/2, -1],
+                [wt/2, h],
+                [-wt/2, h]
+            ]);
+}
+
+// Triple dovetail tongue (male) - three spaced apart
+module dovetail_tongue() {
+    translate([-dovetail_spacing, 0, 0])
+        single_dovetail_tongue();
+    single_dovetail_tongue();  // center
+    translate([dovetail_spacing, 0, 0])
+        single_dovetail_tongue();
+}
+
+// Triple dovetail groove (female) - three spaced apart
+module dovetail_groove() {
+    translate([-dovetail_spacing, 0, 0])
+        single_dovetail_groove();
+    single_dovetail_groove();  // center
+    translate([dovetail_spacing, 0, 0])
+        single_dovetail_groove();
+}
+
+// ============ PLATE-TO-WALL DOVETAILS (tongues going DOWN from plate) ============
+// Single dovetail tongue pointing DOWN (for plate)
+// Wide end is 1mm narrower than groove for easier fit
+module single_dovetail_tongue_down() {
+    tip_width = dovetail_width_top - 1;  // 1mm smaller at wide end
+    rotate([90, 0, 0])
+        linear_extrude(height = wall_thickness, center = true)
+            polygon(points = [
+                [-dovetail_width_base/2, 0],
+                [dovetail_width_base/2, 0],
+                [tip_width/2, -dovetail_height],
+                [-tip_width/2, -dovetail_height]
+            ]);
+}
+
+// Triple dovetail tongue pointing DOWN
+module dovetail_tongue_down() {
+    translate([-dovetail_spacing, 0, 0])
+        single_dovetail_tongue_down();
+    single_dovetail_tongue_down();  // center
+    translate([dovetail_spacing, 0, 0])
+        single_dovetail_tongue_down();
+}
+
+// Single dovetail groove opening UP (for wall top)
+// Keep same angle as tongue, just add uniform clearance to widths (not height)
+module single_dovetail_groove_up() {
+    wb = dovetail_width_base + dovetail_clearance;
+    wt = dovetail_width_top + dovetail_clearance;
+    h = dovetail_height;  // Same height as tongue to preserve angle
+
+    rotate([90, 0, 0])
+        linear_extrude(height = wall_thickness + 2, center = true)
+            polygon(points = [
+                [-wb/2, 1],
+                [wb/2, 1],
+                [wt/2, -h],
+                [-wt/2, -h]
+            ]);
+}
+
+// Triple dovetail groove opening UP
+module dovetail_groove_up() {
+    translate([-dovetail_spacing, 0, 0])
+        single_dovetail_groove_up();
+    single_dovetail_groove_up();  // center
+    translate([dovetail_spacing, 0, 0])
+        single_dovetail_groove_up();
+}
+
+// ============ SOLIDIFIER SLOTS (inset from edges, clustered) ============
+// Creates N parallel thin slots to force slicer to create solid infill
+// Slots are clustered together and inset from top/bottom edges of the dovetail area
+module dovetail_solidifier_slots(z_start, z_height) {
+    if (include_solidifier_slots) {
+        // Total width of the slot cluster (along X)
+        total_width = solidifier_num_slots * solidifier_width +
+                     (solidifier_num_slots - 1) * (solidifier_slot_spacing - solidifier_width);
+
+        // Center the cluster
+        start_x = -total_width / 2;
+
+        // Inset from top and bottom edges in Z direction
+        inset_z_start = z_start + solidifier_inset;
+        inset_z_height = z_height - 2 * solidifier_inset;
+
+        // Generate each slot in the cluster
+        for (i = [0 : solidifier_num_slots - 1]) {
+            slot_x = start_x + i * solidifier_slot_spacing;
+            translate([slot_x, -wall_thickness/2 - 1, inset_z_start])
+                cube([solidifier_width, wall_thickness + 2, inset_z_height]);
+        }
+    }
+}
+
+// Bumper dimensions
+// Bumpers are separate pieces that slide onto the base plate from the X direction
+// (slide inward from the outer edges toward the center) using dovetail joints.
+bumper_gap = 10;  // gap between walls and bumpers
+bumper_length = (bottom_width - plate_width) / 2 - bumper_gap;  // length of each bumper section
+middle_divider_height = bumper_height * 0.75;
+
+// ============ BUMPER DOVETAILS (X-direction sliding) ============
+// Single dovetail tongue - extends UP from base plate (shortened for clearance)
+module single_bumper_dovetail_tongue() {
+    tip_width = dovetail_width_top - 1;  // 1mm smaller at wide end
+    h = dovetail_height - joint_clearance;  // slightly shorter for sliding clearance
+    // Scale tip width proportionally to maintain same angle
+    scaled_tip = dovetail_width_base + (tip_width - dovetail_width_base) * (h / dovetail_height);
+
+    rotate([90, 0, 0])
+        linear_extrude(height = bumper_thickness - 2 * joint_clearance, center = true)
+            polygon(points = [
+                [-dovetail_width_base/2, 0],
+                [dovetail_width_base/2, 0],
+                [scaled_tip/2, h],
+                [-scaled_tip/2, h]
+            ]);
+}
+
+// Single dovetail groove - cut into bottom of bumpers, opens downward
+module single_bumper_dovetail_groove() {
+    wb = dovetail_width_base + dovetail_clearance;
+    wt = dovetail_width_top + dovetail_clearance;
+    h = dovetail_height;
+
+    rotate([90, 0, 0])
+        linear_extrude(height = bumper_thickness + 2, center = true)
+            polygon(points = [
+                [-wb/2, -1],
+                [wb/2, -1],
+                [wt/2, h],
+                [-wt/2, h]
+            ]);
+}
+
+// Double bumper dovetail tongue - two spaced along X
+module bumper_dovetail_tongue() {
+    translate([-dovetail_spacing/2, 0, 0])
+        single_bumper_dovetail_tongue();
+    translate([dovetail_spacing/2, 0, 0])
+        single_bumper_dovetail_tongue();
+}
+
+// Double bumper dovetail groove - two spaced along X
+module bumper_dovetail_groove() {
+    translate([-dovetail_spacing/2, 0, 0])
+        single_bumper_dovetail_groove();
+    translate([dovetail_spacing/2, 0, 0])
+        single_bumper_dovetail_groove();
+}
+
+// X positions for bumper dovetails (centered on each bumper section)
+front_bumper_x = -bottom_width/2 + bumper_length/2;
+back_bumper_x = plate_width/2 + bumper_gap + bumper_length/2;
+
+// Y positions for bumpers
+left_bumper_y = -plate_height/2 + bumper_thickness/2;
+right_bumper_y = plate_height/2 - bumper_thickness/2;
+middle_bumper_y = 0;
+
+// X-sliding dovetail tongue (for bottom plate joint) - points in +X, profile in XY, extrudes in Z
+module bottom_joint_tongue() {
+    tip_width = dovetail_width_top - 1;
+    h = dovetail_height - 2 * joint_clearance;
+    base_w = dovetail_width_base - 2 * joint_clearance;
+    tip_w = (dovetail_width_base + (tip_width - dovetail_width_base) * (h / dovetail_height)) - 2 * joint_clearance;
+
+    translate([joint_clearance, 0, -wall_thickness + joint_clearance])
+        linear_extrude(height = wall_thickness - 2 * joint_clearance)
+            polygon(points = [
+                [0, -base_w/2],
+                [0, base_w/2],
+                [h, tip_w/2],
+                [h, -tip_w/2]
+            ]);
+}
+
+// X-sliding dovetail groove (for bottom plate joint) - cuts into +X direction, profile in XY, extrudes in Z
+module bottom_joint_groove() {
+    wb = dovetail_width_base + dovetail_clearance;
+    wt = dovetail_width_top + dovetail_clearance;
+    h = dovetail_height;
+
+    translate([0, 0, -wall_thickness - 1])
+        linear_extrude(height = wall_thickness + 2)
+            polygon(points = [
+                [-1, -wb/2],
+                [-1, wb/2],
+                [h, wt/2],
+                [h, -wt/2]
+            ]);
+}
+
+// Bottom plate BACK section (with bumpers and dovetail tongues)
+module bottom_plate_back() {
+    // Split at back edge of walls (-plate_width/2)
+    split_x = -plate_width/2;
+    back_width = bottom_width/2 + split_x;
+
+    // Side bumper length - from back bumper to 0.25" before the walls
+    side_bumper_length = (bottom_width/2 - wall_thickness) - (plate_width/2 + 6.35);
+
+    // Main plate - back section only
+    translate([-bottom_width/2, -plate_height/2, -wall_thickness])
+        cube([back_width, plate_height, wall_thickness]);
+
+    // Back bumper - runs along the back edge (-X side)
+    translate([-bottom_width/2, -plate_height/2, 0])
+        cube([wall_thickness, plate_height, bumper_height]);
+
+    // Left side bumper - runs along -Y edge (back section only)
+    translate([-bottom_width/2 + wall_thickness, -plate_height/2, 0])
+        cube([side_bumper_length, wall_thickness, bumper_height]);
+
+    // Right side bumper - runs along +Y edge (back section only)
+    translate([-bottom_width/2 + wall_thickness, plate_height/2 - wall_thickness, 0])
+        cube([side_bumper_length, wall_thickness, bumper_height]);
+
+    // Middle divider bumper - separates the two sides
+    translate([-bottom_width/2 + wall_thickness, -wall_thickness/2, 0])
+        cube([side_bumper_length, wall_thickness, bumper_height]);
+
+    // Dovetail tongues at front edge (+X side) for joining to front section (2 dovetails)
+    for (dy = [-dovetail_spacing/2, dovetail_spacing/2]) {
+        translate([split_x, dy, 0])
+            bottom_joint_tongue();
+    }
+}
+
+// Bottom plate FRONT section (with dovetail grooves)
+module bottom_plate_front() {
+    // Split at back edge of walls (-plate_width/2)
+    split_x = -plate_width/2;
+    // Front section width
+    front_width = bottom_width/2 - split_x;
+
+    difference() {
+        // Main plate - front section only
+        translate([split_x, -plate_height/2, -wall_thickness])
+            cube([front_width, plate_height, wall_thickness]);
+
+        // Dovetail grooves at back edge (-X side) for joining to back section (2 dovetails)
+        for (dy = [-dovetail_spacing/2, dovetail_spacing/2]) {
+            translate([split_x, dy, 0])
+                bottom_joint_groove();
+        }
+    }
+}
+
+// Combined bottom plate (for backward compatibility)
+module bottom_plate() {
+    bottom_plate_back();
+    bottom_plate_front();
+}
+
+// Left bumper - front section (with dovetail groove)
+module left_bumper_front() {
+    difference() {
+        // Main bumper
+        translate([-bottom_width/2, -plate_height/2, 0])
+            cube([bumper_length, bumper_thickness, bumper_height]);
+        // Dovetail groove in bottom
+        translate([front_bumper_x, left_bumper_y, 0])
+            bumper_dovetail_groove();
+    }
+}
+
+// Left bumper - back section
+module left_bumper_back() {
+    difference() {
+        translate([plate_width/2 + bumper_gap, -plate_height/2, 0])
+            cube([bumper_length, bumper_thickness, bumper_height]);
+        translate([back_bumper_x, left_bumper_y, 0])
+            bumper_dovetail_groove();
+    }
+}
+
+// Right bumper - front section
+module right_bumper_front() {
+    difference() {
+        translate([-bottom_width/2, plate_height/2 - bumper_thickness, 0])
+            cube([bumper_length, bumper_thickness, bumper_height]);
+        translate([front_bumper_x, right_bumper_y, 0])
+            bumper_dovetail_groove();
+    }
+}
+
+// Right bumper - back section
+module right_bumper_back() {
+    difference() {
+        translate([plate_width/2 + bumper_gap, plate_height/2 - bumper_thickness, 0])
+            cube([bumper_length, bumper_thickness, bumper_height]);
+        translate([back_bumper_x, right_bumper_y, 0])
+            bumper_dovetail_groove();
+    }
+}
+
+// Middle divider - front section
+module middle_divider_front() {
+    difference() {
+        translate([-bottom_width/2, -bumper_thickness/2, 0])
+            cube([bumper_length, bumper_thickness, middle_divider_height]);
+        translate([front_bumper_x, middle_bumper_y, 0])
+            bumper_dovetail_groove();
+    }
+}
+
+// Middle divider - back section
+module middle_divider_back() {
+    difference() {
+        translate([plate_width/2 + bumper_gap, -bumper_thickness/2, 0])
+            cube([bumper_length, bumper_thickness, middle_divider_height]);
+        translate([back_bumper_x, middle_bumper_y, 0])
+            bumper_dovetail_groove();
+    }
+}
+
+// Y positions of the three walls (used by multiple modules)
+left_y = -plate_height/2 + wall_thickness/2;
+right_y = plate_height/2 - wall_thickness/2;
+middle_y = 0;
+
+// ============ 3-PIECE VERSION: Mount plate with dovetail tongues going DOWN ============
+module mount_plate_with_dovetails() {
+    union() {
+        mount_plate();
+
+        // Dovetail tongues going DOWN for each wall
+        translate([0, left_y, 0])
+            dovetail_tongue_down();
+        translate([0, right_y, 0])
+            dovetail_tongue_down();
+        translate([0, middle_y, 0])
+            dovetail_tongue_down();
+    }
+}
+
+
+// ============ 3-PIECE VERSION: Upper walls with dovetail grooves top and bottom ============
+module upper_walls_with_dovetails() {
+    // Wall height shortened at both ends for clearance gaps
+    wall_z_start = -(half_height - joint_clearance);
+    wall_z_height = half_height - 2 * joint_clearance;  // gap at top AND bottom
+
+    difference() {
+        union() {
+            // Upper half of left wall
+            translate([-plate_width/2, -plate_height/2, wall_z_start])
+                cube([plate_width, wall_thickness, wall_z_height]);
+
+            // Upper half of right wall
+            translate([-plate_width/2, plate_height/2 - wall_thickness, wall_z_start])
+                cube([plate_width, wall_thickness, wall_z_height]);
+
+            // Upper half of middle wall
+            translate([-plate_width/2, -wall_thickness/2, wall_z_start])
+                cube([plate_width, wall_thickness, wall_z_height]);
+        }
+
+        // Dovetail grooves at TOP of each wall (for plate tongues)
+        translate([0, left_y, -joint_clearance])
+            dovetail_groove_up();
+        translate([0, right_y, -joint_clearance])
+            dovetail_groove_up();
+        translate([0, middle_y, -joint_clearance])
+            dovetail_groove_up();
+
+        // Dovetail grooves at BOTTOM of each wall (for bottom half tongues)
+        translate([0, left_y, wall_z_start])
+            dovetail_groove();
+        translate([0, right_y, wall_z_start])
+            dovetail_groove();
+        translate([0, middle_y, wall_z_start])
+            dovetail_groove();
+
+        // Solidifier slots at TOP dovetails (clustered, inset from edges)
+        translate([0, left_y, 0])
+            dovetail_solidifier_slots(-dovetail_height * 1.5 - 1, dovetail_height * 1.5 + 2);
+        translate([0, right_y, 0])
+            dovetail_solidifier_slots(-dovetail_height * 1.5 - 1, dovetail_height * 1.5 + 2);
+        translate([0, middle_y, 0])
+            dovetail_solidifier_slots(-dovetail_height * 1.5 - 1, dovetail_height * 1.5 + 2);
+
+        // Solidifier slots at BOTTOM dovetails (clustered, inset from edges)
+        translate([0, left_y, wall_z_start])
+            dovetail_solidifier_slots(-1, dovetail_height * 1.5 + 2);
+        translate([0, right_y, wall_z_start])
+            dovetail_solidifier_slots(-1, dovetail_height * 1.5 + 2);
+        translate([0, middle_y, wall_z_start])
+            dovetail_solidifier_slots(-1, dovetail_height * 1.5 + 2);
+    }
+}
+
+// ============ LOWER WALLS (with dovetail tongues top and grooves bottom) ============
+module lower_walls_with_dovetails() {
+    // Wall height: shortened at bottom only (for bottom plate joint clearance)
+    // Top extends to Z=0 where tongues attach
+    wall_z_start = -(half_height - joint_clearance);
+    wall_z_height = half_height - joint_clearance;  // extends from wall_z_start to Z=0
+
+    difference() {
+        union() {
+            // Lower half of left wall
+            translate([-plate_width/2, -plate_height/2, wall_z_start])
+                cube([plate_width, wall_thickness, wall_z_height]);
+
+            // Lower half of right wall
+            translate([-plate_width/2, plate_height/2 - wall_thickness, wall_z_start])
+                cube([plate_width, wall_thickness, wall_z_height]);
+
+            // Lower half of middle wall
+            translate([-plate_width/2, -wall_thickness/2, wall_z_start])
+                cube([plate_width, wall_thickness, wall_z_height]);
+
+            // Dovetail tongues at TOP (to connect to upper walls)
+            translate([0, left_y, 0])
+                dovetail_tongue();
+            translate([0, right_y, 0])
+                dovetail_tongue();
+            translate([0, middle_y, 0])
+                dovetail_tongue();
+        }
+
+        // Dovetail grooves at BOTTOM (for bottom plate tongues)
+        translate([0, left_y, wall_z_start])
+            dovetail_groove();
+        translate([0, right_y, wall_z_start])
+            dovetail_groove();
+        translate([0, middle_y, wall_z_start])
+            dovetail_groove();
+    }
+}
+
+// ============ BOTTOM PLATE (with dovetail tongues going UP on front section) ============
+module bottom_plate_with_dovetails() {
+    union() {
+        bottom_plate();
+
+        // Dovetail tongues going UP for each wall (on front section where walls sit)
+        translate([0, left_y, 0])
+            dovetail_tongue();
+        translate([0, right_y, 0])
+            dovetail_tongue();
+        translate([0, middle_y, 0])
+            dovetail_tongue();
+    }
+}
+
+// ============ TEST PIECES (for checking tolerances) ============
+// Full double-dovetail test pieces - flat on XY, Z is wall_thickness
+test_length = plate_width;  // 50mm - same as real walls
+
+module test_male() {
+    // Base with double dovetail tongues (1mm narrower tip for easier fit)
+    wb = dovetail_width_base;
+    wt = dovetail_width_top - 1;
+    h = dovetail_height;
+    base = 5;
+
+    linear_extrude(height = wall_thickness) {
+        // Base
+        translate([-test_length/2, 0])
+            square([test_length, base]);
+
+        // Two dovetail tongues
+        for (dx = [-dovetail_spacing/2, dovetail_spacing/2]) {
+            translate([dx, base])
+                polygon(points = [
+                    [-wb/2, 0],
+                    [wb/2, 0],
+                    [wt/2, h],
+                    [-wt/2, h]
+                ]);
+        }
+    }
+}
+
+module test_female() {
+    // Block with double dovetail grooves (matches real groove dimensions)
+    wb = dovetail_width_base + dovetail_clearance;  // 8.25mm
+    wt = dovetail_width_top + dovetail_clearance;   // 10.25mm
+    h = dovetail_height;  // 8mm (no clearance on height to match real groove)
+    base = 5;
+
+    linear_extrude(height = wall_thickness)
+        difference() {
+            // Outer block
+            translate([-test_length/2, 0])
+                square([test_length, h + base]);
+
+            // Two dovetail grooves from top (narrow opening, wide at bottom)
+            for (dx = [-dovetail_spacing/2, dovetail_spacing/2]) {
+                translate([dx, h + base])
+                    polygon(points = [
+                        [-wb/2, 0],      // narrow at opening
+                        [wb/2, 0],
+                        [wt/2, -h],      // wide at bottom
+                        [-wt/2, -h]
+                    ]);
+            }
+        }
+}
+
+// ============ RENDER ============
+if (display_mode == "assembled") {
+    // Assembled view (4-piece version with dovetails)
+    mount_plate_with_dovetails();
+    upper_walls_with_dovetails();
+    translate([0, 0, -half_height])
+        lower_walls_with_dovetails();
+    translate([0, 0, -wall_height])
+        bottom_plate_with_dovetails();
+} else if (display_mode == "separated") {
+    // Separated for printing - main pieces
+    // Mount plate (print bolt-side down, dovetails pointing up)
+    translate([0, -separation * 1.5, plate_thickness])
+        rotate([180, 0, 0])
+            mount_plate_with_dovetails();
+
+    // Upper walls
+    translate([0, -separation/2, half_height])
+        rotate([180, 0, 0])
+            upper_walls_with_dovetails();
+
+    // Lower walls
+    translate([0, separation/2, half_height])
+        rotate([180, 0, 0])
+            lower_walls_with_dovetails();
+
+    // Bottom plate - back section (tray with bumpers)
+    translate([-separation, separation * 1.5, 0])
+        bottom_plate_back();
+
+    // Bottom plate - front section (with wall dovetails)
+    translate([0, separation * 1.5, 0])
+        union() {
+            bottom_plate_front();
+            // Wall dovetail tongues (walls sit on this section)
+            translate([0, left_y, 0]) dovetail_tongue();
+            translate([0, right_y, 0]) dovetail_tongue();
+            translate([0, middle_y, 0]) dovetail_tongue();
+        }
+} else if (display_mode == "test_male") {
+    // Dovetail male test piece
+    test_male();
+} else if (display_mode == "test_female") {
+    // Dovetail female test piece
+    test_female();
+} else if (display_mode == "test_plate_male") {
+    // Plate-to-wall male test piece (1mm narrower tip)
+    tip_width = dovetail_width_top - 1;
+    base = 5;
+
+    linear_extrude(height = wall_thickness)
+        union() {
+            // Base plate section
+            translate([-test_length/2, 0])
+                square([test_length, base]);
+
+            // Two dovetail tongues going down
+            for (dx = [-dovetail_spacing/2, dovetail_spacing/2]) {
+                translate([dx, 0])
+                    polygon(points = [
+                        [-dovetail_width_base/2, 0],
+                        [dovetail_width_base/2, 0],
+                        [tip_width/2, -dovetail_height],
+                        [-tip_width/2, -dovetail_height]
+                    ]);
+            }
+        }
+} else if (display_mode == "test_plate_female") {
+    // Plate-to-wall female test piece (groove opening up, full size)
+    wb = dovetail_width_base + dovetail_clearance;
+    wt = dovetail_width_top + dovetail_clearance;
+    h = dovetail_height;
+    base = 5;
+
+    linear_extrude(height = wall_thickness)
+        difference() {
+            // Outer block
+            translate([-test_length/2, -h])
+                square([test_length, h + base]);
+
+            // Two dovetail grooves opening up
+            for (dx = [-dovetail_spacing/2, dovetail_spacing/2]) {
+                translate([dx, 0])
+                    polygon(points = [
+                        [-wb/2, 0],
+                        [wb/2, 0],
+                        [wt/2, -h],
+                        [-wt/2, -h]
+                    ]);
+            }
+        }
+} else if (display_mode == "print_top_plate") {
+    // Top plate - print bolt-side down, bumpers up
+    rotate([180, 0, 0])
+        mount_plate_with_dovetails();
+} else if (display_mode == "print_upper_wall") {
+    // Single upper wall - print 3 of these
+    wall_z_start = -(half_height - joint_clearance);
+    wall_z_height = half_height - 2 * joint_clearance;
+
+    rotate([180, 0, 0])
+        difference() {
+            translate([-plate_width/2, -wall_thickness/2, wall_z_start])
+                cube([plate_width, wall_thickness, wall_z_height]);
+            // Groove at top
+            dovetail_groove_up();
+            // Groove at bottom
+            translate([0, 0, wall_z_start])
+                dovetail_groove();
+            // Solidifier slots at top dovetails
+            dovetail_solidifier_slots(-dovetail_height * 1.5 - 1, dovetail_height * 1.5 + 2);
+            // Solidifier slots at bottom dovetails
+            translate([0, 0, wall_z_start])
+                dovetail_solidifier_slots(-1, dovetail_height * 1.5 + 2);
+        }
+} else if (display_mode == "print_lower_wall") {
+    // Single lower wall - print 3 of these
+    wall_z_start = -(half_height - joint_clearance);
+    wall_z_height = half_height - joint_clearance;  // extends to Z=0 where tongue attaches
+
+    rotate([180, 0, 0])
+        difference() {
+            union() {
+                translate([-plate_width/2, -wall_thickness/2, wall_z_start])
+                    cube([plate_width, wall_thickness, wall_z_height]);
+                // Tongue at top
+                dovetail_tongue();
+            }
+            // Groove at bottom
+            translate([0, 0, wall_z_start])
+                dovetail_groove();
+        }
+} else if (display_mode == "print_bottom_back") {
+    // Bottom plate back section (just the tray with bumpers)
+    bottom_plate_back();
+} else if (display_mode == "print_bottom_front") {
+    // Bottom plate front section with wall dovetails
+    union() {
+        bottom_plate_front();
+        // Wall dovetail tongues (walls sit on this section)
+        translate([0, left_y, 0]) dovetail_tongue();
+        translate([0, right_y, 0]) dovetail_tongue();
+        translate([0, middle_y, 0]) dovetail_tongue();
+    }
+}
+
+// Info
+gap_size = (plate_height - 3 * wall_thickness) / 2;
+echo("Plate size:", plate_width, "x", plate_height, "x", plate_thickness, "mm");
+echo("Plastic behind bolts:", plastic_behind_bolt, "mm");
+echo("Wall height:", wall_height, "mm (", wall_height/25.4, "in)");
+echo("Gap per side:", gap_size, "mm (", gap_size/25.4, "in)");

@@ -19,7 +19,7 @@ middle_wall_depth_pct = 0.20;  // How far the middle wall extends (20% from each
 middle_wall_depth = internal_height * middle_wall_depth_pct;
 
 // Lap joint configuration
-lap_overlap = 20;          // How much the lap joint overlaps (configurable)
+lap_overlap = 50;          // How much the lap joint overlaps (configurable)
 lap_thickness = wall_t / 2; // Half the wall thickness for the lap
 
 // View options
@@ -117,8 +117,9 @@ module top_half() {
     // Top plate
     top_plate();
 
-    // Upper portion of walls (from top plate down to center + overlap)
-    upper_wall_height = half_height + lap_overlap;
+    // Upper portion of walls (from top plate down to center + half overlap)
+    // Each wall extends by lap_overlap/2 so together they overlap by lap_overlap
+    upper_wall_height = half_height + lap_overlap / 2;
     y_pos = wall_y_pos();
     z_start = -plate_thickness / 2;
 
@@ -137,8 +138,9 @@ module top_half() {
 
 // BOTTOM HALF: bottom plate + lower walls with lap joint extending up + middle wall
 module bottom_half() {
-    // Lower portion of walls (from bottom plate up to center + overlap)
-    lower_wall_height = half_height + lap_overlap;
+    // Lower portion of walls (from bottom plate up to center + half overlap)
+    // Each wall extends by lap_overlap/2 so together they overlap by lap_overlap
+    lower_wall_height = half_height + lap_overlap / 2;
     y_pos = wall_y_pos();
     z_end = -plate_thickness / 2 - internal_height;
 

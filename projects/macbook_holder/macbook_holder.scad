@@ -7,16 +7,23 @@ nut_recess_diameter = 12;  // Diameter for nut head recess
 screw_material = 5;        // Material thickness for screw threads
 plate_margin = 5;          // Margin/padding around hole pattern
 plate_thickness = 8;       // Thickness of plate
-wall_t = 8;                // Wall thickness
+wall_t = 6;                // Wall thickness
 length_multiplier = 2;     // Multiplier for plate length (X direction)
 
 // Internal compartment dimensions
-internal_width = 40 + wall_t;   // Internal width (Y) - gap between side walls + 1 wall for middle divider
+compartment_gap = 40;      // Gap between side walls (Y) - space for items
+internal_width = compartment_gap + wall_t;   // Total internal width including middle divider
 internal_height = 274;     // Internal height (Z) - 10 inches + 20mm = 274mm (vertical)
 
 // Middle wall configuration
 middle_wall_depth_pct = 0.20;  // How far the middle wall extends (20% from each end)
 middle_wall_depth = internal_height * middle_wall_depth_pct;
+
+// Wall cutout pattern (for material savings)
+cutout_columns = 5;       // Number of cutouts along wall length
+cutout_rows = 3;          // Number of cutouts up wall height (per wall half)
+cutout_margin = 0;        // Extra margin beyond rib (0 = rib width is the edge margin)
+cutout_rib = 8;           // Width of ribs between cutouts (also used as edge margin)
 
 // Lap joint configuration
 lap_overlap = 50;          // How much the lap joint overlaps (configurable)
@@ -36,7 +43,54 @@ function hole_offset_x() = hole_pattern_length / 2;
 function hole_offset_y() = hole_pattern_width / 2;
 function wall_y_pos() = internal_width / 2 + wall_t / 2;
 
+// Cutout dimension calculations
+// Given available space, grid count, and rib width, calculate cutout size
+function cutout_width(avail_length, cols, rib) =
+    (avail_length - (cols + 1) * rib) / cols;
+function cutout_height(avail_height, rows, rib) =
+    (avail_height - (rows + 1) * rib) / rows;
+
 // ===== MODULES =====
+
+// Generates a grid of rectangular cutouts for wall material savings
+// wall_length: total wall length (X)
+// wall_height: height of the cuttable area (Z) - excludes lap zone
+// wall_thickness: wall thickness (Y) - cutouts go through
+// cols/rows: number of cutouts in each direction
+// margin: solid border around the pattern
+// rib: width of material between cutouts
+module wall_cutout_grid(
+    wall_length,
+    wall_height,
+    wall_thickness,
+    cols = cutout_columns,
+    rows = cutout_rows,
+    margin = cutout_margin,
+    rib = cutout_rib
+) {
+    // Available space after margins
+    avail_length = wall_length - 2 * margin;
+    avail_height = wall_height - 2 * margin;
+
+    // Calculate cutout dimensions
+    cut_w = cutout_width(avail_length, cols, rib);
+    cut_h = cutout_height(avail_height, rows, rib);
+
+    // Only render if cutouts have positive size
+    if (cut_w > 0 && cut_h > 0) {
+        // Grid centered on wall center
+        for (col = [0 : cols - 1]) {
+            for (row = [0 : rows - 1]) {
+                // Position: start from corner, offset by margin + rib, then by cell position
+                x_pos = -wall_length/2 + margin + rib + cut_w/2 + col * (cut_w + rib);
+                z_pos = -wall_height/2 + margin + rib + cut_h/2 + row * (cut_h + rib);
+
+                translate([x_pos, 0, z_pos])
+                    cube([cut_w, wall_thickness + 2, cut_h], center=true);
+            }
+        }
+    }
+}
 
 // Top plate with corner holes and nut recesses
 module top_plate(
@@ -78,7 +132,7 @@ module bottom_plate(
     cube([length, width, thickness], center=true);
 }
 
-// Single wall with lap joint cut
+// Single wall with lap joint cut and optional cutout pattern
 // side: 1 = outer lap (for top piece), -1 = inner lap (for bottom piece)
 module wall_with_lap(
     length = plate_length,
@@ -86,8 +140,17 @@ module wall_with_lap(
     thickness = wall_t,
     lap_h = lap_overlap,
     lap_t = lap_thickness,
-    side = 1  // 1 = cut inner half (top piece), -1 = cut outer half (bottom piece)
+    side = 1,  // 1 = cut inner half (top piece), -1 = cut outer half (bottom piece)
+    add_cutouts = true
 ) {
+    // Height available for cutouts: total height minus lap zone minus margin from lap edge
+    cutout_zone_height = height - lap_h - cutout_margin;
+
+    // Z offset for cutout zone center (opposite side from lap)
+    // side=1 (top piece): lap at bottom, cutouts toward top (positive Z)
+    // side=-1 (bottom piece): lap at top, cutouts toward bottom (negative Z)
+    cutout_zone_z = side * (lap_h / 2 + cutout_margin / 2);
+
     difference() {
         // Full wall
         cube([length, thickness, height], center=true);
@@ -97,6 +160,16 @@ module wall_with_lap(
         // side=-1: remove outer half (Y positive side of wall center)
         translate([0, -side * lap_t / 2, (height / 2 - lap_h / 2) * -sign(side)])
             cube([length + 1, lap_t, lap_h], center=true);
+
+        // Cutout pattern (only in the non-lap zone)
+        if (add_cutouts && cutout_zone_height > 2 * cutout_margin) {
+            translate([0, 0, cutout_zone_z])
+                wall_cutout_grid(
+                    wall_length = length,
+                    wall_height = cutout_zone_height,
+                    wall_thickness = thickness
+                );
+        }
     }
 }
 

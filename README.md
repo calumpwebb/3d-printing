@@ -7,12 +7,19 @@ A collection of 3D printing designs using OpenSCAD with a focus on parametric, r
 ```
 printing/
 ├── lib/
-│   └── common.scad          # Shared reusable modules for all projects
-├── example_container_with_pegs.scad   # Example showing module usage
-├── CLAUDE.md                # Project context & guidelines
-├── README.md                # This file
-└── [your-design].scad       # Your individual design files
+│   └── common.scad          # Shared parametric modules for all projects
+├── projects/
+│   └── ${project_name}/
+│       ├── *.scad           # Design source files
+│       ├── *.stl            # Exported meshes (or in stl/ subdirectory)
+│       └── gcode/           # G-code files for printing
+├── CLAUDE.md                # Dev context & architecture (for Claude Code)
+└── README.md                # This file
 ```
+
+**Projects folder**: Organize completed or iterated designs as `projects/${project_name}/`
+
+**Root `.scad` files**: Quick sketches or one-off experiments that live at the repo root
 
 ## Quick Start
 
@@ -88,16 +95,15 @@ Always design with:
 
 This means OpenSCAD's `center=true` for cubes places the part centered at origin, which is correct.
 
-## Example: Using Modules
+## Example Projects
 
-See `example_container_with_pegs.scad` for a complete example showing:
-- Box with internal peg holes in a grid pattern
-- Colored preview of pegs for assembly
-- Optional lid
-- Grid iteration patterns
-- Proper use of the 3-layer structure
+Browse the `projects/` folder to see completed designs:
+- **`projects/macbook_holder/`** - Multi-part assembly with lap joints and nut recesses
+- **`projects/coasters/`** - Parametric coasters with weathering effects
+- **`projects/tolerance_test/`** - Test parts for fit tolerance validation
+- **`projects/drill_pin/`** - Small utility parts
 
-To see it: open `example_container_with_pegs.scad` in OpenSCAD.
+Each project uses the shared modules from `lib/common.scad`.
 
 ## Adding New Modules to the Library
 

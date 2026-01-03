@@ -25,6 +25,12 @@ wall_sections = 3;      // number of wall sections (fence panels)
 wall_section_width = 20; // mm - width of each wall section
 wall_gap_width = 2;     // mm - gap between wall sections
 
+/* [Wall Lap Joints] */
+wall_split_height = 127;     // mm - height where wall splits (default: halfway)
+lap_joint_depth = 4;         // mm - depth of lap joint (typically half wall_thickness)
+lap_joint_width = 16;        // mm - width of lap joint cutout
+lap_joint_offset = 2;        // mm - offset from edge where lap joint starts
+
 /* [Bottom Plate] */
 bottom_width = 363;     // mm (X direction) - full width of bottom plate
 bumper_height = 25.4;   // mm - height of guide bumpers (1 inch)
@@ -171,18 +177,72 @@ module walls() {
     }
 }
 
-// ============ SINGLE WALL (fence-style sections) ============
-module single_wall() {
-    // Full height wall made of configurable sections with gaps (fence style)
+// ============ WALL SECTION WITH LAP JOINT (top or bottom half) ============
+module wall_section_with_lap(half="top", side="left") {
+    // Creates one fence section with lap joint
+    // half: "top" or "bottom" - which half of the split wall
+    // side: "left" or "right" - which side has the lap notch
+
     wall_z_start = -wall_height;
-    wall_z_height = wall_height;
 
-    for (i = [0 : wall_sections - 1]) {
-        // Position each section: start at wall_start_x, then offset by section width + gap
-        section_x = wall_start_x + i * (wall_section_width + wall_gap_width);
+    if (half == "top") {
+        // Top half: from wall_split_height to wall_height
+        z_pos = wall_split_height;
+        z_height = wall_height - wall_split_height;
+        lap_z = z_pos;  // lap joint is at bottom of top piece
+    } else {
+        // Bottom half: from 0 to wall_split_height
+        z_pos = wall_z_start;
+        z_height = wall_split_height;
+        lap_z = wall_split_height;  // lap joint is at top of bottom piece
+    }
 
-        translate([section_x, -plate_height/2, wall_z_start])
-            cube([wall_section_width, wall_thickness, wall_z_height]);
+    difference() {
+        // Main wall section
+        cube([wall_section_width, wall_thickness, z_height]);
+
+        // Lap joint cutout (on specified side)
+        if (side == "left") {
+            // Notch on left side of section
+            translate([lap_joint_offset, 0, -1])
+                cube([lap_joint_width, wall_thickness, lap_joint_depth + 2]);
+        } else {
+            // Notch on right side of section
+            translate([wall_section_width - lap_joint_offset - lap_joint_width, 0, -1])
+                cube([lap_joint_width, wall_thickness, lap_joint_depth + 2]);
+        }
+    }
+}
+
+// ============ SINGLE WALL (fence-style sections with lap joints) ============
+module single_wall() {
+    // Full height wall split in half with lap joints
+    // Top and bottom halves interlock
+
+    wall_z_start = -wall_height;
+
+    // Bottom half (print orientation: Z up from base)
+    translate([0, 0, wall_z_start]) {
+        for (i = [0 : wall_sections - 1]) {
+            section_x = wall_start_x + i * (wall_section_width + wall_gap_width);
+            translate([section_x, -plate_height/2, 0]) {
+                // Alternate lap joint sides for structural strength
+                side = (i % 2 == 0) ? "left" : "right";
+                wall_section_with_lap("bottom", side);
+            }
+        }
+    }
+
+    // Top half - offset above for assembly visualization
+    translate([0, 0, wall_split_height + 5]) {  // +5mm gap for visualization
+        for (i = [0 : wall_sections - 1]) {
+            section_x = wall_start_x + i * (wall_section_width + wall_gap_width);
+            translate([section_x, -plate_height/2, 0]) {
+                // Opposite lap joint sides from bottom half
+                side = (i % 2 == 0) ? "right" : "left";
+                wall_section_with_lap("top", side);
+            }
+        }
     }
 }
 

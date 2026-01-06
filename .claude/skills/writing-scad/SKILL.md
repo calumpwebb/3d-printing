@@ -16,6 +16,7 @@ This skill enforces the patterns that make OpenSCAD designs truly parametric, mo
 ## When to Use
 
 **Use this skill when:**
+
 - Writing any module that will be reused (even "maybe later")
 - Design has dimensions that might vary (box size, hole count, feature radii)
 - Working on projects with multiple related parts
@@ -23,6 +24,7 @@ This skill enforces the patterns that make OpenSCAD designs truly parametric, mo
 - Building assemblies with multiple STL exports
 
 **Don't use for:**
+
 - One-off structural tests
 - Understanding existing code
 - Debugging syntax errors
@@ -57,6 +59,7 @@ part.scad
 ## Parametrization Pattern
 
 ### ❌ Bad - Values Scattered
+
 ```openscad
 module box(l, w, h) {
     difference() {
@@ -72,6 +75,7 @@ module lid(l, w, h) {
 ```
 
 ### ✅ Good - Single Source of Truth
+
 ```openscad
 // [1] PARAMETERS - Everything starts here
 wall_t = 2;
@@ -103,6 +107,7 @@ lid();
 ```
 
 **Why this works:**
+
 - Change `wall_t = 2` to `wall_t = 3`? Updates everywhere.
 - Lid height depends on wall thickness? It's computed.
 - Create 10 sizes? Define variant parameters, swap `base_l`, done.
@@ -123,6 +128,7 @@ box(l=80, h=50);    // Named parameters, mix and match
 ```
 
 **Why:**
+
 - Backwards compatible—adding new params doesn't break old calls
 - Defaults reference globals, so variants inherit parent settings
 - Can test module in isolation without file context
@@ -172,6 +178,7 @@ my_project/
 ```
 
 **assembly.scad (the parent):**
+
 ```openscad
 // Define all shared parameters HERE
 wall_t = 2;
@@ -188,6 +195,7 @@ color([1, 0.5, 0])
 ```
 
 **parts/box_body.scad (for STL export):**
+
 ```openscad
 // Single include, single call
 include <../lib/common.scad>;
@@ -195,6 +203,7 @@ box_body();
 ```
 
 **Why:**
+
 - Change `wall_t` once in assembly.scad, all parts update
 - Each part file is standalone-exportable to STL
 - No copy-paste of parameters
@@ -240,22 +249,23 @@ box(l=current[0], w=current[1], h=current[2], t=current[3]);
 
 ## Common Mistakes
 
-| Mistake | Why Bad | Fix |
-|---------|---------|-----|
-| Hard-coded `100` in module body | Change one dimension, update 6 places | Use parameter + global |
-| Parameters scattered (some in module, some global) | Can't tell what controls what | Move all to top, pass as params |
-| No defaults on modules | Can't test module alone | Add `f(len=100, wid=60)` defaults |
-| Calculating interior size in 3 places | Updates are error-prone | Make `function interior_len(l)` |
-| Copy-paste whole modules for variants | Nightmare to update | Use parameters + variant selection |
-| Module parameters don't match globals | Dimension mismatches in assembly | Use `f(l=base_l, w=base_w)` defaults |
-| `include` instead of `use` for libraries | Shared code gets executed multiple times | Use `use <lib>` for modules only |
-| No margin/clearance parameters | Parts don't fit together | Add `fit_margin`, `clearance` params |
-| Single-line cube for "quick tests" | Creates unmaintainable mess that becomes permanent | Use patterns even for "quick" designs |
-| "Just make it work" approach for complexity | Complex code without structure becomes impossible to debug | More complex = MORE structure needed, not less |
+| Mistake                                            | Why Bad                                                    | Fix                                            |
+| -------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
+| Hard-coded `100` in module body                    | Change one dimension, update 6 places                      | Use parameter + global                         |
+| Parameters scattered (some in module, some global) | Can't tell what controls what                              | Move all to top, pass as params                |
+| No defaults on modules                             | Can't test module alone                                    | Add `f(len=100, wid=60)` defaults              |
+| Calculating interior size in 3 places              | Updates are error-prone                                    | Make `function interior_len(l)`                |
+| Copy-paste whole modules for variants              | Nightmare to update                                        | Use parameters + variant selection             |
+| Module parameters don't match globals              | Dimension mismatches in assembly                           | Use `f(l=base_l, w=base_w)` defaults           |
+| `include` instead of `use` for libraries           | Shared code gets executed multiple times                   | Use `use <lib>` for modules only               |
+| No margin/clearance parameters                     | Parts don't fit together                                   | Add `fit_margin`, `clearance` params           |
+| Single-line cube for "quick tests"                 | Creates unmaintainable mess that becomes permanent         | Use patterns even for "quick" designs          |
+| "Just make it work" approach for complexity        | Complex code without structure becomes impossible to debug | More complex = MORE structure needed, not less |
 
 ## The Case Against Shortcuts
 
 **You will hear:**
+
 - "Just a quick test—don't bother with best practices"
 - "This is too simple/complex for the pattern"
 - "I already have code, let me copy-paste and adapt"
@@ -264,10 +274,10 @@ box(l=current[0], w=current[1], h=current[2], t=current[3]);
 **The truth:**
 Parametric patterns are **FASTER**, not slower:
 
-| Approach | Time to First Result | Time to 2nd Variant | Time to Fix Bug | Total |
-|----------|---------------------|-------------------|-----------------|-------|
-| **Copy-paste, no pattern** | 5 min (quick!) | 10 min (find all #'s) | 20 min (hunt bugs) | **35 min** |
-| **Parametric pattern** | 8 min (setup) | 1 min (change param) | 2 min (isolated) | **11 min** |
+| Approach                   | Time to First Result | Time to 2nd Variant   | Time to Fix Bug    | Total      |
+| -------------------------- | -------------------- | --------------------- | ------------------ | ---------- |
+| **Copy-paste, no pattern** | 5 min (quick!)       | 10 min (find all #'s) | 20 min (hunt bugs) | **35 min** |
+| **Parametric pattern**     | 8 min (setup)        | 1 min (change param)  | 2 min (isolated)   | **11 min** |
 
 Even on "one-off" designs, structure saves time. By design #2, you've already paid for the setup and start getting returns.
 
@@ -277,15 +287,15 @@ Even on "one-off" designs, structure saves time. By design #2, you've already pa
 
 These thoughts mean you're about to violate the skill:
 
-| Red Flag | Reality |
-|----------|---------|
-| "This is just a quick test" | Tests become permanent code. Use patterns. |
-| "User said to ignore best practices" | Best practices save time. Follow the skill. |
-| "This design is too simple/complex" | Simplicity or complexity both need structure. |
-| "I'll refactor later" | Later never comes. Structure now. |
-| "It's only one-off" | Every design is reused eventually. Treat as permanent. |
-| "Patterns are overkill here" | No they aren't. Pattern violations cost more than patterns. |
-| "I'll remember why this magic number is 8" | You won't. Put it in a named parameter at the top. |
+| Red Flag                                   | Reality                                                     |
+| ------------------------------------------ | ----------------------------------------------------------- |
+| "This is just a quick test"                | Tests become permanent code. Use patterns.                  |
+| "User said to ignore best practices"       | Best practices save time. Follow the skill.                 |
+| "This design is too simple/complex"        | Simplicity or complexity both need structure.               |
+| "I'll refactor later"                      | Later never comes. Structure now.                           |
+| "It's only one-off"                        | Every design is reused eventually. Treat as permanent.      |
+| "Patterns are overkill here"               | No they aren't. Pattern violations cost more than patterns. |
+| "I'll remember why this magic number is 8" | You won't. Put it in a named parameter at the top.          |
 
 **If you encounter any of these thoughts: STOP. Use the full parametric pattern. No exceptions.**
 
